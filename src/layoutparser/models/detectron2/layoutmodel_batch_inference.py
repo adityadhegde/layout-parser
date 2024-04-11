@@ -160,7 +160,7 @@ class Detectron2BatchLayoutModel(BaseLayoutModel):
         for batch in batches:
             outputs = self.model(batch)
             layout = list(map(self.gather_output,outputs))
-            layouts.append(layout)
+            layouts.extend(layout)
         return layouts
 
     def image_loader(self, images: list,):
