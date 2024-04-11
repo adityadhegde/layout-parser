@@ -25,6 +25,7 @@ from ...file_utils import is_torch_cuda_available, is_detectron2_available
 if is_detectron2_available():
     import detectron2.engine
     import detectron2.config
+    from detectron2.engine.defaults import DefaultBatchPredictor
 
 
 __all__ = ["Detectron2BatchLayoutModel"]
@@ -121,7 +122,7 @@ class Detectron2BatchLayoutModel(BaseLayoutModel):
         self._create_model()
 
     def _create_model(self):
-        self.model = detectron2.engine.DefaultBatchPredictor(self.cfg)
+        self.model = DefaultBatchPredictor(self.cfg)
 
     def gather_output(self, outputs):
 
