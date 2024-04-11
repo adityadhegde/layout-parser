@@ -27,10 +27,10 @@ if is_detectron2_available():
     import detectron2.config
 
 
-__all__ = ["Detectron2LayoutModel"]
+__all__ = ["Detectron2BatchLayoutModel"]
 
 
-class Detectron2LayoutModel(BaseLayoutModel):
+class Detectron2BatchLayoutModel(BaseLayoutModel):
     """Create a Detectron2-based Layout Detection Model
 
     Args:
@@ -74,7 +74,9 @@ class Detectron2LayoutModel(BaseLayoutModel):
         extra_config=None,
         enforce_cpu=None,
         device=None,
+        batch_size:Union[int,None]=None
     ):
+        self.batch_size = batch_size
 
         if enforce_cpu is not None:
             warnings.warn(
@@ -107,7 +109,7 @@ class Detectron2LayoutModel(BaseLayoutModel):
             cfg.MODEL.WEIGHTS = model_path
 
         if is_torch_cuda_available():
-            if (device is None) or (device == 'cuda'):
+            if (device is None) or (device == "cuda"):
                 device = "cuda"
         else:
             device = "cpu"
@@ -119,12 +121,11 @@ class Detectron2LayoutModel(BaseLayoutModel):
         self._create_model()
 
     def _create_model(self):
-        self.model = detectron2.engine.DefaultPredictor(self.cfg)
+        self.model = detectron2.engine.DefaultBatchPredictor(self.cfg)
 
     def gather_output(self, outputs):
 
         instance_pred = outputs["instances"].to("cpu")
-
         layout = Layout()
         scores = instance_pred.scores.tolist()
         boxes = instance_pred.pred_boxes.tensor.tolist()
@@ -153,16 +154,29 @@ class Detectron2LayoutModel(BaseLayoutModel):
             :obj:`~layoutparser.Layout`: The detected layout of the input image
         """
 
-        image = self.image_loader(image)
-        outputs = self.model(image)
-        layout = self.gather_output(outputs)
-        return layout
+        batches = self.image_loader(image)
+        layouts = list()
+        for batch in batches:
+            outputs = self.model(batch)
+            layout = list(map(self.gather_output,outputs))
+            layouts.append(layout)
+        return layouts
 
-    def image_loader(self, image: Union["np.ndarray", "Image.Image"]):
+    def image_loader(self, images: list,):
+        batch_size = self.batch_size
+        num_batches = (len(images)+batch_size-1)//batch_size
+        batches = list()
         # Convert PIL Image Input
-        if isinstance(image, Image.Image):
-            if image.mode != "RGB":
-                image = image.convert("RGB")
-            image = np.array(image)
-
-        return image
+        if isinstance(images, list):
+            for idx in range(num_batches):
+                start_id = idx*batch_size
+                end_id = min(len(images), start_id+batch_size)
+                batch = images[start_id:end_id]
+                batch_arrary = list()
+                for image in batch:
+                    if image.mode != "RGB":
+                        image = image.convert("RGB")
+                    image = np.array(image)
+                    batch_arrary.append(image)
+                batches.append(batch_arrary)
+        return batches
